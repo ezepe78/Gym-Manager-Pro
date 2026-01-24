@@ -400,7 +400,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       getTotalDelinquentDebt, resetData, updateStudent, addStudent, moveStudentSchedule, addExpense, deleteExpense,
       addGuest, deleteGuest, addEvaluation, updateGymInfo, updateWhatsappTemplates, updateMaxCapacity
     }}>
-      {children}
+      {loading ? (
+        <div className="flex items-center justify-center h-screen bg-slate-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-slate-600 font-medium">Cargando aplicación...</p>
+          </div>
+        </div>
+      ) : children}
     </AppContext.Provider>
   );
 };

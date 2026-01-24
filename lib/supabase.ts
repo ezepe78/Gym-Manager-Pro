@@ -1,10 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+// Intentar obtener de varias fuentes comunes en Vite/Replit
+const supabaseUrl = process.env.SUPABASE_URL || (import.meta as any).env?.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase credentials missing. Please set SUPABASE_URL and SUPABASE_ANON_KEY secrets.');
+  console.error('Supabase credentials missing! Please set SUPABASE_URL and SUPABASE_ANON_KEY in Replit Secrets.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Solo crear el cliente si las credenciales parecen válidas (contienen http)
+export const supabase = (supabaseUrl && supabaseUrl.startsWith('http') && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null as any;
