@@ -2,10 +2,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { AppState, Student, Payment, Attendance, PaymentStatus, StudentStatus, Fee, FeeConfig, Expense, GuestRegistration, BodyEvaluation, TieredRateHistory, DayOfWeek } from '../types';
 import { INITIAL_STUDENTS } from '../constants';
+import { db } from '../lib/db';
 
 interface AppContextType extends AppState {
   currentView: string;
   focusedStudentId: string | null;
+  loading: boolean;
   setCurrentView: (view: string) => void;
   setFocusedStudentId: (id: string | null) => void;
   navigateToStudent: (id: string) => void;
@@ -49,36 +51,57 @@ const DEFAULT_RATES = {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<AppState>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-    return {
-      gymName: 'GymPro',
-      gymLogo: null,
-      whatsappTemplateAgenda: 'Hola {studentName}, confirmamos tu turno de las {time} para hoy en {gymName}. ¡Te esperamos!',
-      whatsappTemplateDebt: 'Hola {studentName}, te contactamos de {gymName} para recordarte que tenés una cuota pendiente. ¡Gracias!',
-      students: INITIAL_STUDENTS,
-      fees: [],
-      payments: [],
-      expenses: [],
-      guests: [],
-      attendance: [],
-      simulatedDate: new Date().toISOString(),
-      feeConfigs: [],
-      defaultAmount: 21000,
-      tieredAmountHistory: [
-        { month: new Date().getMonth(), year: new Date().getFullYear(), rates: DEFAULT_RATES }
-      ],
-      maxCapacityPerShift: 10
-    };
+  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<AppState>({
+    gymName: 'GymPro',
+    gymLogo: null,
+    whatsappTemplateAgenda: 'Hola {studentName}, confirmamos tu turno de las {time} para hoy en {gymName}. ¡Te esperamos!',
+    whatsappTemplateDebt: 'Hola {studentName}, te contactamos de {gymName} para recordarte que tenés una cuota pendiente. ¡Gracias!',
+    students: INITIAL_STUDENTS,
+    fees: [],
+    payments: [],
+    expenses: [],
+    guests: [],
+    attendance: [],
+    simulatedDate: new Date().toISOString(),
+    feeConfigs: [],
+    defaultAmount: 21000,
+    tieredAmountHistory: [
+      { month: new Date().getMonth(), year: new Date().getFullYear(), rates: DEFAULT_RATES }
+    ],
+    maxCapacityPerShift: 10
   });
 
   const [currentView, setCurrentView] = useState('dashboard');
   const [focusedStudentId, setFocusedStudentId] = useState<string | null>(null);
 
+  // Load data from Supabase on mount
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    const loadData = async () => {
+      try {
+        const remoteData = await db.getAppState();
+        setState(prev => ({
+          ...prev,
+          ...Object.fromEntries(Object.entries(remoteData).filter(([_, v]) => v !== undefined && v !== null))
+        }));
+      } catch (error) {
+        console.error('Error loading data from Supabase:', error);
+        // Fallback to localStorage if Supabase fails
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) setState(JSON.parse(saved));
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Sync to localStorage as backup
+  useEffect(() => {
+    if (!loading) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+  }, [state, loading]);
 
   const navigateToStudent = useCallback((id: string) => {
     setFocusedStudentId(id);
@@ -98,6 +121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [state.tieredAmountHistory]);
 
   useEffect(() => {
+    if (loading) return;
     const simDate = new Date(state.simulatedDate);
     const month = simDate.getMonth();
     const year = simDate.getFullYear();
@@ -112,80 +136,96 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const sessionsCount = s.schedule.length;
         const tier = sessionsCount >= 5 ? 5 : (sessionsCount < 1 ? 1 : sessionsCount);
         const amount = activeRates[tier];
-        return {
+        const fee = {
           id: Math.random().toString(36).substr(2, 9),
           studentId: s.id,
           month: month,
           year: year,
           amountOwed: amount
         };
+        db.upsertFee(fee);
+        return fee;
       });
       setState(prev => ({ ...prev, fees: [...prev.fees, ...newFees] }));
     }
-  }, [state.simulatedDate, state.students, getRatesForPeriod, state.fees]);
+  }, [state.simulatedDate, state.students, getRatesForPeriod, state.fees, loading]);
 
   const setSimulatedDate = (date: string) => {
     setState(prev => ({ ...prev, simulatedDate: date }));
+    db.updateSettings({ simulated_date: date });
   };
 
   const setDefaultAmount = (amount: number) => {
     setState(prev => ({ ...prev, defaultAmount: amount }));
+    db.updateSettings({ default_amount: amount });
   };
 
   const setHistoricalTieredAmount = (month: number, year: number, rates: { [key: number]: number }) => {
     setState(prev => {
       const filtered = prev.tieredAmountHistory.filter(h => !(h.month === month && h.year === year));
-      return { ...prev, tieredAmountHistory: [...filtered, { month, year, rates }] };
+      const newHistory = [...filtered, { month, year, rates }];
+      db.updateSettings({ tiered_amount_history: newHistory });
+      return { ...prev, tieredAmountHistory: newHistory };
     });
   };
 
   const deleteHistoricalTieredAmount = (month: number, year: number) => {
-    setState(prev => ({
-      ...prev,
-      tieredAmountHistory: prev.tieredAmountHistory.filter(h => !(h.month === month && h.year === year))
-    }));
+    setState(prev => {
+      const newHistory = prev.tieredAmountHistory.filter(h => !(h.month === month && h.year === year));
+      db.updateSettings({ tiered_amount_history: newHistory });
+      return { ...prev, tieredAmountHistory: newHistory };
+    });
   };
 
   const addPayment = (payment: Omit<Payment, 'id'>) => {
     const newPayment = { ...payment, id: Math.random().toString(36).substr(2, 9) };
     setState(prev => ({ ...prev, payments: [...prev.payments, newPayment] }));
+    db.upsertPayment(newPayment);
   };
 
   const deletePayment = (paymentId: string) => {
     setState(prev => ({ ...prev, payments: prev.payments.filter(p => p.id !== paymentId) }));
+    db.deletePayment(paymentId);
   };
 
   const addExpense = (expense: Omit<Expense, 'id'>) => {
     const newExpense = { ...expense, id: Math.random().toString(36).substr(2, 9) };
     setState(prev => ({ ...prev, expenses: [...prev.expenses, newExpense] }));
+    db.upsertExpense(newExpense);
   };
 
   const deleteExpense = (id: string) => {
     setState(prev => ({ ...prev, expenses: prev.expenses.filter(e => e.id !== id) }));
+    db.deleteExpense(id);
   };
 
   const addGuest = (guest: Omit<GuestRegistration, 'id'>) => {
     const newGuest = { ...guest, id: Math.random().toString(36).substr(2, 9) };
     setState(prev => ({ ...prev, guests: [...prev.guests, newGuest] }));
+    db.upsertGuest(newGuest);
   };
 
   const deleteGuest = (id: string) => {
     setState(prev => ({ ...prev, guests: prev.guests.filter(g => g.id !== id) }));
+    db.deleteGuest(id);
   };
 
   const addEvaluation = (studentId: string, evaluation: Omit<BodyEvaluation, 'id'>) => {
-    setState(prev => ({
-      ...prev,
-      students: prev.students.map(s => {
+    setState(prev => {
+      const newStudents = prev.students.map(s => {
         if (s.id === studentId) {
-          return { ...s, evaluations: [...s.evaluations, { ...evaluation, id: Math.random().toString(36).substr(2, 9) }] };
+          const updated = { ...s, evaluations: [...s.evaluations, { ...evaluation, id: Math.random().toString(36).substr(2, 9) }] };
+          db.upsertStudent(updated);
+          return updated;
         }
         return s;
-      })
-    }));
+      });
+      return { ...prev, students: newStudents };
+    });
   };
 
   const setFeeConfig = (config: FeeConfig) => {
+    // Note: feeConfigs not explicitly mapped to a separate table yet, keeping in local state/storage for now or could be added to settings
     setState(prev => {
       const filtered = prev.feeConfigs.filter(c => !(c.month === config.month && c.year === config.year));
       return { ...prev, feeConfigs: [...filtered, config] };
@@ -205,13 +245,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const sessionsCount = s.schedule.length;
         const tier = sessionsCount >= 5 ? 5 : (sessionsCount < 1 ? 1 : sessionsCount);
         const amount = activeRates[tier];
-        return {
+        const fee = {
           id: Math.random().toString(36).substr(2, 9),
           studentId: s.id,
           month: month,
           year: year,
           amountOwed: amount
         };
+        db.upsertFee(fee);
+        return fee;
       });
       return { ...prev, fees: [...prev.fees, ...newFees] };
     });
@@ -221,9 +263,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => {
       const exists = prev.attendance.find(a => a.studentId === studentId && a.date === date && a.time === time);
       if (exists) {
+        db.deleteAttendance(studentId, date, time);
         return { ...prev, attendance: prev.attendance.filter(a => !(a.studentId === studentId && a.date === date && a.time === time)) };
       }
-      return { ...prev, attendance: [...prev.attendance, { studentId, date, time, present: true }] };
+      const record = { studentId, date, time, present: true };
+      db.upsertAttendance(record);
+      return { ...prev, attendance: [...prev.attendance, record] };
     });
   };
 
@@ -266,7 +311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetData = () => {
     const now = new Date();
-    setState({
+    const newState = {
       gymName: 'GymPro',
       gymLogo: null,
       whatsappTemplateAgenda: 'Hola {studentName}, confirmamos tu turno de las {time} para hoy en {gymName}. ¡Te esperamos!',
@@ -282,7 +327,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       defaultAmount: 21000,
       tieredAmountHistory: [{ month: now.getMonth(), year: now.getFullYear(), rates: DEFAULT_RATES }],
       maxCapacityPerShift: 10
-    });
+    };
+    setState(newState);
+    // Note: Bulk delete not implemented in db helper yet, but this is a destructive action
   };
 
   const updateStudent = (student: Student) => {
@@ -290,6 +337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       students: prev.students.map(s => s.id === student.id ? student : s)
     }));
+    db.upsertStudent(student);
   };
 
   const moveStudentSchedule = (studentId: string, oldDay: DayOfWeek, oldStartTime: string, newDay: DayOfWeek, newStartTime: string) => {
@@ -313,9 +361,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       success = true;
+      const updatedStudent = { ...student, schedule: newSchedule };
+      db.upsertStudent(updatedStudent);
       return {
         ...prev,
-        students: prev.students.map(s => s.id === studentId ? { ...s, schedule: newSchedule } : s)
+        students: prev.students.map(s => s.id === studentId ? updatedStudent : s)
       };
     });
     return success;
@@ -324,23 +374,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addStudent = (student: Omit<Student, 'id'>) => {
     const newStudent = { ...student, id: Math.random().toString(36).substr(2, 9), status: StudentStatus.ACTIVE, evaluations: [], notes: student.notes || '' };
     setState(prev => ({ ...prev, students: [...prev.students, newStudent] }));
+    db.upsertStudent(newStudent);
   };
 
   const updateGymInfo = (name: string, logo: string | null) => {
     setState(prev => ({ ...prev, gymName: name, gymLogo: logo }));
+    db.updateSettings({ gym_name: name, gym_logo: logo });
   };
 
   const updateWhatsappTemplates = (agenda: string, debt: string) => {
     setState(prev => ({ ...prev, whatsappTemplateAgenda: agenda, whatsappTemplateDebt: debt }));
+    db.updateSettings({ whatsapp_template_agenda: agenda, whatsapp_template_debt: debt });
   };
 
   const updateMaxCapacity = (capacity: number) => {
     setState(prev => ({ ...prev, maxCapacityPerShift: capacity }));
+    db.updateSettings({ max_capacity_per_shift: capacity });
   };
 
   return (
     <AppContext.Provider value={{ 
-      ...state, currentView, focusedStudentId, setCurrentView, setFocusedStudentId, navigateToStudent,
+      ...state, currentView, focusedStudentId, loading, setCurrentView, setFocusedStudentId, navigateToStudent,
       setSimulatedDate, addPayment, deletePayment, registerBulkFees, setFeeConfig, setDefaultAmount,
       setHistoricalTieredAmount, deleteHistoricalTieredAmount, getRatesForPeriod, toggleAttendance, getStudentStatus, getStudentDebt,
       getTotalDelinquentDebt, resetData, updateStudent, addStudent, moveStudentSchedule, addExpense, deleteExpense,
