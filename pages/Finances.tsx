@@ -9,7 +9,7 @@ import { MONTH_NAMES } from '../constants';
 import { 
   Wallet, Plus, Trash2, TrendingUp, TrendingDown, 
   DollarSign, Calendar, X, Tag, FileText, 
-  ChevronDown, BarChart3, PieChart, ArrowRight 
+  ChevronDown, BarChart3, PieChart, ArrowRight, Edit3
 } from 'lucide-react';
 
 export const Finances: React.FC = () => {
