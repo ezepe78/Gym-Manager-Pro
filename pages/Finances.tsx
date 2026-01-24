@@ -123,7 +123,7 @@ export const Finances: React.FC = () => {
                       type="number" 
                       required 
                       autoFocus
-                      value={form.amount} 
+                      value={form.amount === 0 ? '' : form.amount} 
                       onChange={e => setForm({...form, amount: Number(e.target.value)})} 
                       className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-rose-500/10 text-3xl font-black text-rose-600" 
                     />

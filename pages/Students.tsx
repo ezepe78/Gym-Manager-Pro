@@ -282,6 +282,22 @@ export const Students: React.FC = () => {
                         <input required value={studentForm.name} onChange={e => setStudentForm({...studentForm, name: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
                     </div>
                     <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400">Estado</label>
+                        <select 
+                            value={showEditModal && selectedStudent ? selectedStudent.status : StudentStatus.ACTIVE} 
+                            onChange={e => {
+                                if (showEditModal && selectedStudent) {
+                                    updateStudent({ ...selectedStudent, status: e.target.value as StudentStatus });
+                                    triggerToast(`Estado cambiado a ${e.target.value === StudentStatus.ACTIVE ? 'Activo' : 'Inactivo'}`);
+                                }
+                            }}
+                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold"
+                        >
+                            <option value={StudentStatus.ACTIVE}>Activo</option>
+                            <option value={StudentStatus.INACTIVE}>Inactivo</option>
+                        </select>
+                    </div>
+                    <div className="space-y-1">
                         <label className="text-[10px] font-black uppercase text-slate-400">Email</label>
                         <input type="email" required value={studentForm.email} onChange={e => setStudentForm({...studentForm, email: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none" />
                     </div>
