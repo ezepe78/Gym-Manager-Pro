@@ -239,6 +239,34 @@ export const Settings: React.FC = () => {
         </div>
 
         <div className="space-y-10">
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+               <div className="bg-white rounded-[2rem] p-8 max-md w-full max-w-md shadow-2xl border border-rose-100">
+                  <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6"><AlertCircle size={28}/></div>
+                  <h3 className="text-2xl font-black text-slate-900 mb-2">¿Eliminar Periodo?</h3>
+                  <p className="text-slate-500 text-sm mb-8">
+                    Vas a eliminar el historial de tarifas de <strong>{periodToDelete ? `${MONTH_NAMES[periodToDelete.month]} ${periodToDelete.year}` : ''}</strong>. Esta acción no se puede deshacer.
+                  </p>
+                  <div className="flex flex-col gap-3">
+                     <button 
+                        onClick={() => {
+                          if (periodToDelete) {
+                            deleteHistoricalTieredAmount(periodToDelete.month, periodToDelete.year);
+                            triggerToast("Periodo eliminado correctamente");
+                            setShowDeleteConfirm(false);
+                            setPeriodToDelete(null);
+                          }
+                        }} 
+                        className="w-full py-4 bg-rose-600 text-white font-black rounded-2xl shadow-lg shadow-rose-200"
+                     >
+                        Eliminar Registro
+                     </button>
+                     <button onClick={() => setShowDeleteConfirm(false)} className="w-full py-4 bg-slate-100 font-bold rounded-2xl text-slate-600 hover:bg-slate-200 transition-all">Cancelar</button>
+                  </div>
+               </div>
+            </div>
+          )}
+
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-8 relative overflow-hidden">
             <div className="flex items-center justify-between relative z-10">
                 <div className="flex items-center gap-4">
@@ -293,6 +321,70 @@ export const Settings: React.FC = () => {
                   <Save size={20}/> Guardar Tarifas
               </button>
             </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-8 relative overflow-hidden">
+             <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-100">
+                  <History size={24}/>
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-800 leading-none">Historial de Tarifas</h2>
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Registros históricos por periodo</p>
+                </div>
+             </div>
+
+             <div className="overflow-x-auto">
+                <table className="w-full text-left border-separate border-spacing-y-2">
+                   <thead>
+                      <tr className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                         <th className="px-4 py-2">Periodo</th>
+                         {[1, 2, 3, 4, 5].map(t => <th key={t} className="px-2 py-2 text-center">{t}v</th>)}
+                         <th className="px-4 py-2 text-right">Acciones</th>
+                      </tr>
+                   </thead>
+                   <tbody>
+                      {tieredAmountHistory.sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month).map((h, idx) => (
+                         <tr key={idx} className="group bg-slate-50 hover:bg-slate-100 transition-colors rounded-2xl">
+                            <td className="px-4 py-4 rounded-l-2xl">
+                               <span className="font-black text-slate-700">{MONTH_NAMES[h.month]} {h.year}</span>
+                            </td>
+                            {[1, 2, 3, 4, 5].map(t => (
+                               <td key={t} className="px-2 py-4 text-center font-bold text-slate-600">
+                                  ${h.rates[t]?.toLocaleString() || '0'}
+                               </td>
+                            ))}
+                            <td className="px-4 py-4 text-right rounded-r-2xl">
+                               <div className="flex items-center justify-end gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setTargetMonth(h.month);
+                                      setTargetYear(h.year);
+                                      setLocalTiers(h.rates);
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"
+                                    title="Editar"
+                                  >
+                                     <Edit3 size={16}/>
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      setPeriodToDelete({ month: h.month, year: h.year });
+                                      setShowDeleteConfirm(true);
+                                    }}
+                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg transition-all"
+                                    title="Eliminar"
+                                  >
+                                     <Trash2 size={16}/>
+                                  </button>
+                               </div>
+                            </td>
+                         </tr>
+                      ))}
+                   </tbody>
+                </table>
+             </div>
           </div>
 
           <div className="bg-rose-50 p-8 rounded-[2.5rem] border border-rose-100 space-y-6">
