@@ -70,6 +70,11 @@ export const db = {
     return supabase.from('expenses').upsert(expense);
   },
 
+  async updateExpense(id: string, updates: Partial<Expense>) {
+    if (!supabase) return;
+    return supabase.from('expenses').update(updates).eq('id', id);
+  },
+
   async deleteExpense(id: string) {
     if (!supabase) return;
     return supabase.from('expenses').delete().eq('id', id);

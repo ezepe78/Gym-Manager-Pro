@@ -29,6 +29,7 @@ interface AppContextType extends AppState {
   addStudent: (student: Omit<Student, 'id'>) => void;
   moveStudentSchedule: (studentId: string, oldDay: DayOfWeek, oldStartTime: string, newDay: DayOfWeek, newStartTime: string) => boolean;
   addExpense: (expense: Omit<Expense, 'id'>) => void;
+  updateExpense: (id: string, expense: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
   addGuest: (guest: Omit<GuestRegistration, 'id'>) => void;
   deleteGuest: (id: string) => void;
@@ -192,6 +193,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newExpense = { ...expense, id: Math.random().toString(36).substr(2, 9) };
     setState(prev => ({ ...prev, expenses: [...prev.expenses, newExpense] }));
     db.upsertExpense(newExpense);
+  };
+
+  const updateExpense = (id: string, updates: Partial<Expense>) => {
+    setState(prev => ({
+      ...prev,
+      expenses: prev.expenses.map(e => e.id === id ? { ...e, ...updates } : e)
+    }));
+    db.updateExpense(id, updates);
   };
 
   const deleteExpense = (id: string) => {
@@ -397,7 +406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...state, currentView, focusedStudentId, loading, setCurrentView, setFocusedStudentId, navigateToStudent,
       setSimulatedDate, addPayment, deletePayment, registerBulkFees, setFeeConfig, setDefaultAmount,
       setHistoricalTieredAmount, deleteHistoricalTieredAmount, getRatesForPeriod, toggleAttendance, getStudentStatus, getStudentDebt,
-      getTotalDelinquentDebt, resetData, updateStudent, addStudent, moveStudentSchedule, addExpense, deleteExpense,
+      getTotalDelinquentDebt, resetData, updateStudent, addStudent, moveStudentSchedule, addExpense, updateExpense, deleteExpense,
       addGuest, deleteGuest, addEvaluation, updateGymInfo, updateWhatsappTemplates, updateMaxCapacity
     }}>
       {loading ? (

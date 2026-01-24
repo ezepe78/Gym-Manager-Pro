@@ -13,8 +13,9 @@ import {
 } from 'lucide-react';
 
 export const Finances: React.FC = () => {
-  const { expenses, addExpense, deleteExpense, payments, simulatedDate } = useApp();
+  const { expenses, addExpense, updateExpense, deleteExpense, payments, simulatedDate } = useApp();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [form, setForm] = useState({ 
     category: 'Alquiler', 
     amount: 0, 
@@ -63,10 +64,38 @@ export const Finances: React.FC = () => {
     });
   }, [payments, expenses, selectedYear]);
 
+  const handleOpenAdd = () => {
+    setEditingExpenseId(null);
+    setForm({ 
+      category: 'Alquiler', 
+      amount: 0, 
+      description: '', 
+      date: new Date().toISOString().split('T')[0] 
+    });
+    setShowAddModal(true);
+  };
+
+  const handleOpenEdit = (expense: any) => {
+    setEditingExpenseId(expense.id);
+    setForm({
+      category: expense.category,
+      amount: expense.amount,
+      description: expense.description || '',
+      date: expense.date
+    });
+    setShowAddModal(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (form.amount <= 0) return;
-    addExpense(form);
+    
+    if (editingExpenseId) {
+      updateExpense(editingExpenseId, form);
+    } else {
+      addExpense(form);
+    }
+    
     setShowAddModal(false);
     setForm({ 
       category: 'Alquiler', 
@@ -74,6 +103,7 @@ export const Finances: React.FC = () => {
       description: '', 
       date: new Date().toISOString().split('T')[0] 
     });
+    setEditingExpenseId(null);
   };
 
   const yearsOptions = useMemo(() => {
@@ -90,7 +120,7 @@ export const Finances: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
            <div className="bg-white rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl border border-slate-100">
               <div className="flex justify-between items-center mb-8">
-                 <h3 className="text-2xl font-black text-slate-900">Registrar Gasto</h3>
+                 <h3 className="text-2xl font-black text-slate-900">{editingExpenseId ? 'Editar Gasto' : 'Registrar Gasto'}</h3>
                  <button 
                    onClick={() => setShowAddModal(false)}
                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
@@ -151,8 +181,8 @@ export const Finances: React.FC = () => {
                    type="submit" 
                    className="w-full py-5 bg-slate-900 text-white font-black rounded-[1.5rem] shadow-xl hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                  >
-                    <Plus size={20}/>
-                    Guardar Gasto
+                    {editingExpenseId ? <Edit3 size={20}/> : <Plus size={20}/>}
+                    {editingExpenseId ? 'Guardar Cambios' : 'Guardar Gasto'}
                  </button>
               </form>
            </div>
@@ -165,7 +195,7 @@ export const Finances: React.FC = () => {
           <p className="text-slate-500 font-medium mt-1">Rentabilidad neta, flujo de caja y egresos proyectados.</p>
         </div>
         <button 
-          onClick={() => setShowAddModal(true)} 
+          onClick={handleOpenAdd} 
           className="bg-rose-600 text-white px-8 py-4 rounded-[1.25rem] flex items-center gap-3 shadow-xl shadow-rose-200 hover:scale-[1.02] active:scale-95 transition-all"
         >
           <Plus size={24} />
@@ -327,12 +357,22 @@ export const Finances: React.FC = () => {
                        <td className="px-10 py-6 text-sm text-slate-500 font-medium italic">{e.description || '-'}</td>
                        <td className="px-10 py-6 text-right font-black text-rose-600 text-xl tracking-tighter">${e.amount}</td>
                        <td className="px-10 py-6">
-                          <button 
-                            onClick={() => deleteExpense(e.id)} 
-                            className="mx-auto flex items-center justify-center w-10 h-10 rounded-xl bg-slate-50 text-slate-300 hover:bg-rose-50 hover:text-rose-600 transition-all"
-                          >
-                             <Trash2 size={18} />
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                             <button 
+                               onClick={() => handleOpenEdit(e)} 
+                               className="w-10 h-10 rounded-xl bg-slate-50 text-slate-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center justify-center"
+                               title="Editar"
+                             >
+                                <Edit3 size={18} />
+                             </button>
+                             <button 
+                               onClick={() => deleteExpense(e.id)} 
+                               className="w-10 h-10 rounded-xl bg-slate-50 text-slate-300 hover:bg-rose-50 hover:text-rose-600 transition-all flex items-center justify-center"
+                               title="Eliminar"
+                             >
+                                <Trash2 size={18} />
+                             </button>
+                          </div>
                        </td>
                     </tr>
                   ))}
