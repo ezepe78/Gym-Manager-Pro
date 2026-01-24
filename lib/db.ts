@@ -37,7 +37,17 @@ export const db = {
 
   async updateSettings(updates: any) {
     if (!supabase) return;
-    return supabase.from('settings').update(updates).eq('id', 'default');
+    const dbUpdates: any = {};
+    if (updates.gym_name !== undefined) dbUpdates.gym_name = updates.gym_name;
+    if (updates.gym_logo !== undefined) dbUpdates.gym_logo = updates.gym_logo;
+    if (updates.whatsapp_template_agenda !== undefined) dbUpdates.whatsapp_template_agenda = updates.whatsapp_template_agenda;
+    if (updates.whatsapp_template_debt !== undefined) dbUpdates.whatsapp_template_debt = updates.whatsapp_template_debt;
+    if (updates.default_amount !== undefined) dbUpdates.default_amount = updates.default_amount;
+    if (updates.max_capacity_per_shift !== undefined) dbUpdates.max_capacity_per_shift = updates.max_capacity_per_shift;
+    if (updates.simulated_date !== undefined) dbUpdates.simulated_date = updates.simulated_date;
+    if (updates.tiered_amount_history !== undefined) dbUpdates.tiered_amount_history = updates.tiered_amount_history;
+    
+    return supabase.from('settings').upsert({ id: 'default', ...dbUpdates });
   },
 
   async upsertStudent(student: Student) {
