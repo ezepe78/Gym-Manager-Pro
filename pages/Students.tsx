@@ -9,8 +9,10 @@ import {
   DollarSign, CheckCircle, 
   X, Calendar, AlertTriangle, 
   MapPin, TrendingUp, Activity, 
-  CreditCard, Edit3, ChevronRight, Save, Users, Clock, ArrowRight, History, Calculator, Home, StickyNote
+  CreditCard, Edit3, ChevronRight, Save, Users, Clock, ArrowRight, History, Calculator, Home, StickyNote,
+  Download, Upload, FileText
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export const Students: React.FC = () => {
   const { 
@@ -256,6 +258,68 @@ export const Students: React.FC = () => {
     });
   }, [students, searchTerm, statusFilter]);
 
+  const handleExportExcel = () => {
+    const exportData = students.map(s => ({
+      Nombre: s.name,
+      Email: s.email,
+      Teléfono: s.phone,
+      Estado: s.status,
+      'Fecha Ingreso': s.joinDate,
+      'Fecha Nacimiento': s.birthDate,
+      Calle: s.address.street,
+      Número: s.address.number,
+      Localidad: s.address.locality,
+      Sesiones: s.schedule.map(slot => `${slot.day} ${slot.startTime}`).join(', '),
+      Notas: s.notes || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Alumnos");
+    XLSX.writeFile(wb, `Listado_Alumnos_${new Date().toISOString().split('T')[0]}.xlsx`);
+    triggerToast("Excel exportado correctamente.");
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        data.forEach(row => {
+          if (row.Nombre) {
+            addStudent({
+              name: row.Nombre,
+              email: row.Email || '',
+              phone: String(row.Teléfono || ''),
+              birthDate: row['Fecha Nacimiento'] || '1990-01-01',
+              address: { 
+                street: row.Calle || '', 
+                number: String(row.Número || ''), 
+                locality: row.Localidad || 'Del Carril' 
+              },
+              schedule: [], // Los horarios suelen requerir configuración manual por conflictos
+              notes: row.Notas || ''
+            });
+          }
+        });
+        triggerToast(`Se importaron ${data.length} alumnos correctamente.`);
+      } catch (error) {
+        console.error("Import error:", error);
+        triggerToast("Error al importar el archivo Excel.", "error");
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = ''; // Reset input
+  };
+
   return (
     <div className="space-y-8 h-full relative pb-24">
       {toast.visible && (
@@ -437,10 +501,21 @@ export const Students: React.FC = () => {
           <h1 className="text-3xl font-bold text-slate-900">Gestión de Alumnos</h1>
           <p className="text-slate-500">Membresías, cronogramas y saldos corrientes.</p>
         </div>
-        <button onClick={() => setShowAddModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl flex items-center space-x-2 shadow-xl shadow-blue-200 transition-transform active:scale-95">
-          <Plus size={22} />
-          <span className="font-bold">Nuevo Alumno</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="bg-white text-slate-600 border border-slate-200 px-6 py-4 rounded-2xl flex items-center space-x-2 shadow-sm transition-all hover:bg-slate-50 cursor-pointer active:scale-95">
+            <Upload size={20} />
+            <span className="font-bold">Importar</span>
+            <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+          </label>
+          <button onClick={handleExportExcel} className="bg-white text-slate-600 border border-slate-200 px-6 py-4 rounded-2xl flex items-center space-x-2 shadow-sm transition-all hover:bg-slate-50 active:scale-95">
+            <Download size={20} />
+            <span className="font-bold">Exportar</span>
+          </button>
+          <button onClick={() => setShowAddModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl flex items-center space-x-2 shadow-xl shadow-blue-200 transition-transform active:scale-95">
+            <Plus size={22} />
+            <span className="font-bold">Nuevo Alumno</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
