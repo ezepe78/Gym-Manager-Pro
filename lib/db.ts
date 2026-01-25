@@ -9,11 +9,60 @@ export const db = {
       if (settingsError) console.error('Settings fetch error:', settingsError);
       
       const { data: students } = await supabase.from('students').select('*');
-      const { data: fees } = await supabase.from('fees').select('*');
-      const { data: payments } = await supabase.from('payments').select('*');
+      const { data: fees, error: feesError } = await supabase.from('fees').select('*');
+      if (feesError) console.error('Fees fetch error:', feesError);
+      
+      const { data: payments, error: paymentsError } = await supabase.from('payments').select('*');
+      if (paymentsError) console.error('Payments fetch error:', paymentsError);
+
       const { data: expenses } = await supabase.from('expenses').select('*');
       const { data: guests } = await supabase.from('guests').select('*');
       const { data: attendance } = await supabase.from('attendance').select('*');
+
+      const mappedFees: Fee[] = (fees || []).map(f => ({
+        id: f.id,
+        studentId: f.student_id,
+        month: f.month,
+        year: f.year,
+        amountOwed: f.amount_owed
+      }));
+
+      const mappedPayments: Payment[] = (payments || []).map(p => ({
+        id: p.id,
+        studentId: p.student_id,
+        month: p.month,
+        year: p.year,
+        amount: p.amount,
+        date: p.date,
+        method: p.method,
+        notes: p.notes
+      }));
+
+      const mappedExpenses: Expense[] = (expenses || []).map(e => ({
+        id: e.id,
+        description: e.description,
+        amount: e.amount,
+        date: e.date,
+        category: e.category,
+        paymentMethod: e.payment_method
+      }));
+
+      const mappedGuests: GuestRegistration[] = (guests || []).map(g => ({
+        id: g.id,
+        name: g.name,
+        phone: g.phone,
+        date: g.date,
+        time: g.time,
+        paymentMethod: g.payment_method,
+        amount: g.amount
+      }));
+
+      const mappedAttendance: Attendance[] = (attendance || []).map(a => ({
+        studentId: a.student_id,
+        date: a.date,
+        time: a.time,
+        present: a.present
+      }));
 
       return {
         gymName: settings?.gym_name || undefined,
@@ -25,11 +74,11 @@ export const db = {
         simulatedDate: settings?.simulated_date || undefined,
         tieredAmountHistory: settings?.tiered_amount_history || undefined,
         students: students || [],
-        fees: fees || [],
-        payments: payments || [],
-        expenses: expenses || [],
-        guests: guests || [],
-        attendance: attendance || []
+        fees: mappedFees,
+        payments: mappedPayments,
+        expenses: mappedExpenses,
+        guests: mappedGuests,
+        attendance: mappedAttendance
       };
     } catch (e) {
       console.error('DB fetch error:', e);
@@ -50,7 +99,6 @@ export const db = {
     if (updates.tiered_amount_history !== undefined) dbUpdates.tiered_amount_history = updates.tiered_amount_history;
     
     console.log('Upserting settings with:', dbUpdates);
-    // Explicitly target 'id' for conflict resolution and use upsert correctly
     const { data, error } = await supabase
       .from('settings')
       .upsert({ id: 'default', ...dbUpdates }, { onConflict: 'id' })
@@ -58,7 +106,6 @@ export const db = {
 
     if (error) {
       console.error('Upsert error:', error);
-      // Fallback to direct update if upsert fails for any reason
       const { data: updateData, error: updateError } = await supabase
         .from('settings')
         .update(dbUpdates)
@@ -81,12 +128,30 @@ export const db = {
 
   async upsertFee(fee: Fee) {
     if (!supabase) return;
-    return supabase.from('fees').upsert(fee);
+    const dbFee = {
+      id: fee.id,
+      student_id: fee.studentId,
+      month: fee.month,
+      year: fee.year,
+      amount_owed: fee.amountOwed
+    };
+    console.log('Upserting fee to Supabase:', dbFee);
+    return supabase.from('fees').upsert(dbFee, { onConflict: 'id' });
   },
 
   async upsertPayment(payment: Payment) {
     if (!supabase) return;
-    return supabase.from('payments').upsert(payment);
+    const dbPayment = {
+      id: payment.id,
+      student_id: payment.studentId,
+      month: payment.month,
+      year: payment.year,
+      amount: payment.amount,
+      date: payment.date,
+      method: payment.method,
+      notes: payment.notes
+    };
+    return supabase.from('payments').upsert(dbPayment, { onConflict: 'id' });
   },
 
   async deletePayment(id: string) {
@@ -96,7 +161,15 @@ export const db = {
 
   async upsertExpense(expense: Expense) {
     if (!supabase) return;
-    return supabase.from('expenses').upsert(expense);
+    const dbExpense = {
+      id: expense.id,
+      description: expense.description,
+      amount: expense.amount,
+      date: expense.date,
+      category: expense.category,
+      payment_method: expense.paymentMethod
+    };
+    return supabase.from('expenses').upsert(dbExpense, { onConflict: 'id' });
   },
 
   async updateExpense(id: string, updates: Partial<Expense>) {
@@ -111,7 +184,16 @@ export const db = {
 
   async upsertGuest(guest: GuestRegistration) {
     if (!supabase) return;
-    return supabase.from('guests').upsert(guest);
+    const dbGuest = {
+      id: guest.id,
+      name: guest.name,
+      phone: guest.phone,
+      date: guest.date,
+      time: guest.time,
+      payment_method: guest.paymentMethod,
+      amount: guest.amount
+    };
+    return supabase.from('guests').upsert(dbGuest, { onConflict: 'id' });
   },
 
   async deleteGuest(id: string) {
@@ -121,7 +203,13 @@ export const db = {
 
   async upsertAttendance(record: Attendance) {
     if (!supabase) return;
-    return supabase.from('attendance').insert(record);
+    const dbAttendance = {
+      student_id: record.studentId,
+      date: record.date,
+      time: record.time,
+      present: record.present
+    };
+    return supabase.from('attendance').upsert(dbAttendance, { onConflict: 'student_id,date,time' });
   },
 
   async deleteAttendance(studentId: string, date: string, time: string) {

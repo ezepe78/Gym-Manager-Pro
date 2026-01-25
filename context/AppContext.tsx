@@ -102,6 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
           // Persist to localStorage immediately after loading from remote
           localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+          console.log('Final state after load:', newState);
           return newState;
         });
       } catch (error) {
@@ -198,42 +199,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addPayment = (payment: Omit<Payment, 'id'>) => {
     const newPayment = { ...payment, id: Math.random().toString(36).substr(2, 9) };
-    setState(prev => ({ ...prev, payments: [...prev.payments, newPayment] }));
+    setState(prev => {
+      const newState = { ...prev, payments: [...prev.payments, newPayment] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.upsertPayment(newPayment);
   };
 
   const deletePayment = (paymentId: string) => {
-    setState(prev => ({ ...prev, payments: prev.payments.filter(p => p.id !== paymentId) }));
+    setState(prev => {
+      const newState = { ...prev, payments: prev.payments.filter(p => p.id !== paymentId) };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.deletePayment(paymentId);
   };
 
   const addExpense = (expense: Omit<Expense, 'id'>) => {
     const newExpense = { ...expense, id: Math.random().toString(36).substr(2, 9) };
-    setState(prev => ({ ...prev, expenses: [...prev.expenses, newExpense] }));
+    setState(prev => {
+      const newState = { ...prev, expenses: [...prev.expenses, newExpense] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.upsertExpense(newExpense);
   };
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
-    setState(prev => ({
-      ...prev,
-      expenses: prev.expenses.map(e => e.id === id ? { ...e, ...updates } : e)
-    }));
+    setState(prev => {
+      const newState = {
+        ...prev,
+        expenses: prev.expenses.map(e => e.id === id ? { ...e, ...updates } : e)
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.updateExpense(id, updates);
   };
 
   const deleteExpense = (id: string) => {
-    setState(prev => ({ ...prev, expenses: prev.expenses.filter(e => e.id !== id) }));
+    setState(prev => {
+      const newState = { ...prev, expenses: prev.expenses.filter(e => e.id !== id) };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.deleteExpense(id);
   };
 
   const addGuest = (guest: Omit<GuestRegistration, 'id'>) => {
     const newGuest = { ...guest, id: Math.random().toString(36).substr(2, 9) };
-    setState(prev => ({ ...prev, guests: [...prev.guests, newGuest] }));
+    setState(prev => {
+      const newState = { ...prev, guests: [...prev.guests, newGuest] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.upsertGuest(newGuest);
   };
 
   const deleteGuest = (id: string) => {
-    setState(prev => ({ ...prev, guests: prev.guests.filter(g => g.id !== id) }));
+    setState(prev => {
+      const newState = { ...prev, guests: prev.guests.filter(g => g.id !== id) };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.deleteGuest(id);
   };
 
@@ -247,7 +276,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         return s;
       });
-      return { ...prev, students: newStudents };
+      const newState = { ...prev, students: newStudents };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
     });
   };
 
@@ -279,23 +310,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           year: year,
           amountOwed: amount
         };
+        // Persist fee to DB immediately
         db.upsertFee(fee);
         return fee;
       });
-      return { ...prev, fees: [...prev.fees, ...newFees] };
+      const newState = { ...prev, fees: [...prev.fees, ...newFees] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
     });
   };
 
   const toggleAttendance = (studentId: string, date: string, time: string) => {
     setState(prev => {
       const exists = prev.attendance.find(a => a.studentId === studentId && a.date === date && a.time === time);
+      let newState;
       if (exists) {
         db.deleteAttendance(studentId, date, time);
-        return { ...prev, attendance: prev.attendance.filter(a => !(a.studentId === studentId && a.date === date && a.time === time)) };
+        newState = { ...prev, attendance: prev.attendance.filter(a => !(a.studentId === studentId && a.date === date && a.time === time)) };
+      } else {
+        const record = { studentId, date, time, present: true };
+        db.upsertAttendance(record);
+        newState = { ...prev, attendance: [...prev.attendance, record] };
       }
-      const record = { studentId, date, time, present: true };
-      db.upsertAttendance(record);
-      return { ...prev, attendance: [...prev.attendance, record] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
     });
   };
 
@@ -360,10 +398,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateStudent = (student: Student) => {
-    setState(prev => ({
-      ...prev,
-      students: prev.students.map(s => s.id === student.id ? student : s)
-    }));
+    setState(prev => {
+      const newState = {
+        ...prev,
+        students: prev.students.map(s => s.id === student.id ? student : s)
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.upsertStudent(student);
   };
 
@@ -390,17 +432,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       success = true;
       const updatedStudent = { ...student, schedule: newSchedule };
       db.upsertStudent(updatedStudent);
-      return {
+      const newState = {
         ...prev,
         students: prev.students.map(s => s.id === studentId ? updatedStudent : s)
       };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
     });
     return success;
   };
 
   const addStudent = (student: Omit<Student, 'id'>) => {
     const newStudent = { ...student, id: Math.random().toString(36).substr(2, 9), status: StudentStatus.ACTIVE, evaluations: [], notes: student.notes || '' };
-    setState(prev => ({ ...prev, students: [...prev.students, newStudent] }));
+    setState(prev => {
+      const newState = { ...prev, students: [...prev.students, newStudent] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
     db.upsertStudent(newStudent);
   };
 
