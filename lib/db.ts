@@ -118,7 +118,21 @@ export const db = {
 
   async upsertStudent(student: Student) {
     if (!supabase) return;
-    return supabase.from('students').upsert(student);
+    console.log('Upserting student to Supabase:', student);
+    // Explicitly map properties to ensure they match table columns if needed
+    // However, if the object already matches, we can just pass it
+    const dbStudent = {
+      id: student.id,
+      name: student.name,
+      phone: student.phone,
+      status: student.status,
+      notes: student.notes,
+      evaluations: student.evaluations,
+      schedule: student.schedule
+    };
+    const { data, error } = await supabase.from('students').upsert(dbStudent, { onConflict: 'id' }).select();
+    if (error) console.error('Error upserting student:', error);
+    return { data, error };
   },
 
   async deleteStudent(id: string) {

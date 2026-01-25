@@ -86,8 +86,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Check if we need to sync initial students to Supabase
         if (!remoteData.students || remoteData.students.length === 0) {
           console.log('No students found in Supabase, syncing initial data...');
-          for (const student of INITIAL_STUDENTS) {
-            await db.upsertStudent(student);
+          // Sync initial data
+          await Promise.all(INITIAL_STUDENTS.map(student => db.upsertStudent(student)));
+          // Re-load state after sync to ensure we have the remote IDs and structure
+          const refreshedData = await db.getAppState();
+          if (refreshedData.students && refreshedData.students.length > 0) {
+            remoteData.students = refreshedData.students;
+          } else {
+            // Fallback if sync failed but we want to show data anyway
+            remoteData.students = INITIAL_STUDENTS;
           }
         }
 
