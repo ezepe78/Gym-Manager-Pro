@@ -81,9 +81,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const loadData = async () => {
       try {
         const remoteData = await db.getAppState();
+        console.log('Remote data loaded:', remoteData);
         setState(prev => ({
           ...prev,
-          ...Object.fromEntries(Object.entries(remoteData).filter(([_, v]) => v !== undefined && v !== null))
+          gymName: remoteData.gymName || prev.gymName,
+          gymLogo: remoteData.gymLogo || prev.gymLogo,
+          whatsappTemplateAgenda: remoteData.whatsappTemplateAgenda || prev.whatsappTemplateAgenda,
+          whatsappTemplateDebt: remoteData.whatsappTemplateDebt || prev.whatsappTemplateDebt,
+          defaultAmount: remoteData.defaultAmount || prev.defaultAmount,
+          maxCapacityPerShift: remoteData.maxCapacityPerShift || prev.maxCapacityPerShift,
+          simulatedDate: remoteData.simulatedDate || prev.simulatedDate,
+          tieredAmountHistory: remoteData.tieredAmountHistory || prev.tieredAmountHistory,
+          students: remoteData.students || prev.students,
+          fees: remoteData.fees || prev.fees,
+          payments: remoteData.payments || prev.payments,
+          expenses: remoteData.expenses || prev.expenses,
+          guests: remoteData.guests || prev.guests,
+          attendance: remoteData.attendance || prev.attendance
         }));
       } catch (error) {
         console.error('Error loading data from Supabase:', error);
