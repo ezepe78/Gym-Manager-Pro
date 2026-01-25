@@ -82,6 +82,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const remoteData = await db.getAppState();
         console.log('Remote data loaded from Supabase:', remoteData);
+        
+        // Check if we need to sync initial students to Supabase
+        if (!remoteData.students || remoteData.students.length === 0) {
+          console.log('No students found in Supabase, syncing initial data...');
+          for (const student of INITIAL_STUDENTS) {
+            await db.upsertStudent(student);
+          }
+        }
+
         setState(prev => {
           const newState = {
             ...prev,
@@ -93,7 +102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             maxCapacityPerShift: remoteData.maxCapacityPerShift !== undefined ? remoteData.maxCapacityPerShift : prev.maxCapacityPerShift,
             simulatedDate: remoteData.simulatedDate !== undefined ? remoteData.simulatedDate : prev.simulatedDate,
             tieredAmountHistory: remoteData.tieredAmountHistory !== undefined ? remoteData.tieredAmountHistory : prev.tieredAmountHistory,
-            students: remoteData.students && remoteData.students.length > 0 ? remoteData.students : prev.students,
+            students: remoteData.students && remoteData.students.length > 0 ? remoteData.students : INITIAL_STUDENTS,
             fees: remoteData.fees || prev.fees,
             payments: remoteData.payments || prev.payments,
             expenses: remoteData.expenses || prev.expenses,
