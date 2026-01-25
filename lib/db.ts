@@ -5,7 +5,9 @@ export const db = {
   async getAppState(): Promise<Partial<AppState>> {
     if (!supabase) return {};
     try {
-      const { data: settings } = await supabase.from('settings').select('*').eq('id', 'default').single();
+      const { data: settings, error: settingsError } = await supabase.from('settings').select('*').eq('id', 'default').maybeSingle();
+      if (settingsError) console.error('Settings fetch error:', settingsError);
+      
       const { data: students } = await supabase.from('students').select('*');
       const { data: fees } = await supabase.from('fees').select('*');
       const { data: payments } = await supabase.from('payments').select('*');
@@ -14,14 +16,14 @@ export const db = {
       const { data: attendance } = await supabase.from('attendance').select('*');
 
       return {
-        gymName: settings?.gym_name,
-        gymLogo: settings?.gym_logo,
-        whatsappTemplateAgenda: settings?.whatsapp_template_agenda,
-        whatsappTemplateDebt: settings?.whatsapp_template_debt,
-        defaultAmount: settings?.default_amount,
-        maxCapacityPerShift: settings?.max_capacity_per_shift,
-        simulatedDate: settings?.simulated_date,
-        tieredAmountHistory: settings?.tiered_amount_history,
+        gymName: settings?.gym_name || undefined,
+        gymLogo: settings?.gym_logo || undefined,
+        whatsappTemplateAgenda: settings?.whatsapp_template_agenda || undefined,
+        whatsappTemplateDebt: settings?.whatsapp_template_debt || undefined,
+        defaultAmount: settings?.default_amount || undefined,
+        maxCapacityPerShift: settings?.max_capacity_per_shift || undefined,
+        simulatedDate: settings?.simulated_date || undefined,
+        tieredAmountHistory: settings?.tiered_amount_history || undefined,
         students: students || [],
         fees: fees || [],
         payments: payments || [],
@@ -47,7 +49,24 @@ export const db = {
     if (updates.simulated_date !== undefined) dbUpdates.simulated_date = updates.simulated_date;
     if (updates.tiered_amount_history !== undefined) dbUpdates.tiered_amount_history = updates.tiered_amount_history;
     
-    return supabase.from('settings').upsert({ id: 'default', ...dbUpdates });
+    console.log('Upserting settings with:', dbUpdates);
+    // Explicitly target 'id' for conflict resolution and use upsert correctly
+    const { data, error } = await supabase
+      .from('settings')
+      .upsert({ id: 'default', ...dbUpdates }, { onConflict: 'id' })
+      .select();
+
+    if (error) {
+      console.error('Upsert error:', error);
+      // Fallback to direct update if upsert fails for any reason
+      const { data: updateData, error: updateError } = await supabase
+        .from('settings')
+        .update(dbUpdates)
+        .eq('id', 'default')
+        .select();
+      return { data: updateData, error: updateError };
+    }
+    return { data, error };
   },
 
   async upsertStudent(student: Student) {

@@ -81,27 +81,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const loadData = async () => {
       try {
         const remoteData = await db.getAppState();
-        console.log('Remote data loaded:', remoteData);
-        setState(prev => ({
-          ...prev,
-          gymName: remoteData.gymName || prev.gymName,
-          gymLogo: remoteData.gymLogo || prev.gymLogo,
-          whatsappTemplateAgenda: remoteData.whatsappTemplateAgenda || prev.whatsappTemplateAgenda,
-          whatsappTemplateDebt: remoteData.whatsappTemplateDebt || prev.whatsappTemplateDebt,
-          defaultAmount: remoteData.defaultAmount || prev.defaultAmount,
-          maxCapacityPerShift: remoteData.maxCapacityPerShift || prev.maxCapacityPerShift,
-          simulatedDate: remoteData.simulatedDate || prev.simulatedDate,
-          tieredAmountHistory: remoteData.tieredAmountHistory || prev.tieredAmountHistory,
-          students: remoteData.students || prev.students,
-          fees: remoteData.fees || prev.fees,
-          payments: remoteData.payments || prev.payments,
-          expenses: remoteData.expenses || prev.expenses,
-          guests: remoteData.guests || prev.guests,
-          attendance: remoteData.attendance || prev.attendance
-        }));
+        console.log('Remote data loaded from Supabase:', remoteData);
+        setState(prev => {
+          const newState = {
+            ...prev,
+            gymName: remoteData.gymName !== undefined ? remoteData.gymName : prev.gymName,
+            gymLogo: remoteData.gymLogo !== undefined ? remoteData.gymLogo : prev.gymLogo,
+            whatsappTemplateAgenda: remoteData.whatsappTemplateAgenda !== undefined ? remoteData.whatsappTemplateAgenda : prev.whatsappTemplateAgenda,
+            whatsappTemplateDebt: remoteData.whatsappTemplateDebt !== undefined ? remoteData.whatsappTemplateDebt : prev.whatsappTemplateDebt,
+            defaultAmount: remoteData.defaultAmount !== undefined ? remoteData.defaultAmount : prev.defaultAmount,
+            maxCapacityPerShift: remoteData.maxCapacityPerShift !== undefined ? remoteData.maxCapacityPerShift : prev.maxCapacityPerShift,
+            simulatedDate: remoteData.simulatedDate !== undefined ? remoteData.simulatedDate : prev.simulatedDate,
+            tieredAmountHistory: remoteData.tieredAmountHistory !== undefined ? remoteData.tieredAmountHistory : prev.tieredAmountHistory,
+            students: remoteData.students && remoteData.students.length > 0 ? remoteData.students : prev.students,
+            fees: remoteData.fees || prev.fees,
+            payments: remoteData.payments || prev.payments,
+            expenses: remoteData.expenses || prev.expenses,
+            guests: remoteData.guests || prev.guests,
+            attendance: remoteData.attendance || prev.attendance
+          };
+          // Persist to localStorage immediately after loading from remote
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+          return newState;
+        });
       } catch (error) {
         console.error('Error loading data from Supabase:', error);
-        // Fallback to localStorage if Supabase fails
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) setState(JSON.parse(saved));
       } finally {
@@ -401,18 +405,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateGymInfo = (name: string, logo: string | null) => {
-    setState(prev => ({ ...prev, gymName: name, gymLogo: logo }));
-    db.updateSettings({ gym_name: name, gym_logo: logo });
+    setState(prev => {
+      const newState = { ...prev, gymName: name, gymLogo: logo };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
+    // Ensure we are sending the correct snake_case keys to the db
+    db.updateSettings({ gym_name: name, gym_logo: logo }).then(res => {
+      console.log('Update settings result:', res);
+      if (res?.error) {
+        console.error('Error updating settings in DB:', res.error);
+      }
+    });
   };
 
   const updateWhatsappTemplates = (agenda: string, debt: string) => {
-    setState(prev => ({ ...prev, whatsappTemplateAgenda: agenda, whatsappTemplateDebt: debt }));
-    db.updateSettings({ whatsapp_template_agenda: agenda, whatsapp_template_debt: debt });
+    setState(prev => {
+      const newState = { ...prev, whatsappTemplateAgenda: agenda, whatsappTemplateDebt: debt };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
+    db.updateSettings({ whatsapp_template_agenda: agenda, whatsapp_template_debt: debt }).then(res => {
+      console.log('Update whatsapp templates result:', res);
+    });
   };
 
   const updateMaxCapacity = (capacity: number) => {
-    setState(prev => ({ ...prev, maxCapacityPerShift: capacity }));
-    db.updateSettings({ max_capacity_per_shift: capacity });
+    setState(prev => {
+      const newState = { ...prev, maxCapacityPerShift: capacity };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      return newState;
+    });
+    db.updateSettings({ max_capacity_per_shift: capacity }).then(res => {
+      console.log('Update max capacity result:', res);
+    });
   };
 
   return (
