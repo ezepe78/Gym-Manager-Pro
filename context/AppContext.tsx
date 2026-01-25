@@ -76,55 +76,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentView, setCurrentView] = useState('dashboard');
   const [focusedStudentId, setFocusedStudentId] = useState<string | null>(null);
 
-  // Load data from Supabase on mount
+  // Load data from localStorage on mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        const remoteData = await db.getAppState();
-        console.log('Remote data loaded from Supabase:', remoteData);
-        
-        // Check if we need to sync initial students to Supabase
-        if (!remoteData.students || remoteData.students.length === 0) {
-          console.log('No students found in Supabase, syncing initial data...');
-          // Sync initial data
-          await Promise.all(INITIAL_STUDENTS.map(student => db.upsertStudent(student)));
-          // Re-load state after sync to ensure we have the remote IDs and structure
-          const refreshedData = await db.getAppState();
-          if (refreshedData.students && refreshedData.students.length > 0) {
-            remoteData.students = refreshedData.students;
-          } else {
-            // Fallback if sync failed but we want to show data anyway
-            remoteData.students = INITIAL_STUDENTS;
-          }
-        }
-
-        setState(prev => {
-          const newState = {
-            ...prev,
-            gymName: remoteData.gymName !== undefined ? remoteData.gymName : prev.gymName,
-            gymLogo: remoteData.gymLogo !== undefined ? remoteData.gymLogo : prev.gymLogo,
-            whatsappTemplateAgenda: remoteData.whatsappTemplateAgenda !== undefined ? remoteData.whatsappTemplateAgenda : prev.whatsappTemplateAgenda,
-            whatsappTemplateDebt: remoteData.whatsappTemplateDebt !== undefined ? remoteData.whatsappTemplateDebt : prev.whatsappTemplateDebt,
-            defaultAmount: remoteData.defaultAmount !== undefined ? remoteData.defaultAmount : prev.defaultAmount,
-            maxCapacityPerShift: remoteData.maxCapacityPerShift !== undefined ? remoteData.maxCapacityPerShift : prev.maxCapacityPerShift,
-            simulatedDate: remoteData.simulatedDate !== undefined ? remoteData.simulatedDate : prev.simulatedDate,
-            tieredAmountHistory: remoteData.tieredAmountHistory !== undefined ? remoteData.tieredAmountHistory : prev.tieredAmountHistory,
-            students: remoteData.students && remoteData.students.length > 0 ? remoteData.students : INITIAL_STUDENTS,
-            fees: remoteData.fees || prev.fees,
-            payments: remoteData.payments || prev.payments,
-            expenses: remoteData.expenses || prev.expenses,
-            guests: remoteData.guests || prev.guests,
-            attendance: remoteData.attendance || prev.attendance
-          };
-          // Persist to localStorage immediately after loading from remote
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
-          console.log('Final state after load:', newState);
-          return newState;
-        });
-      } catch (error) {
-        console.error('Error loading data from Supabase:', error);
         const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) setState(JSON.parse(saved));
+        if (saved) {
+          setState(JSON.parse(saved));
+        } else {
+          const newState = {
+            ...state,
+            students: INITIAL_STUDENTS
+          };
+          setState(newState);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+        }
+      } catch (error) {
+        console.error('Error loading data from localStorage:', error);
       } finally {
         setLoading(false);
       }
@@ -179,7 +147,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           year: year,
           amountOwed: amount
         };
-        db.upsertFee(fee);
         return fee;
       });
       setState(prev => ({ ...prev, fees: [...prev.fees, ...newFees] }));
@@ -188,19 +155,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setSimulatedDate = (date: string) => {
     setState(prev => ({ ...prev, simulatedDate: date }));
-    db.updateSettings({ simulated_date: date });
   };
 
   const setDefaultAmount = (amount: number) => {
     setState(prev => ({ ...prev, defaultAmount: amount }));
-    db.updateSettings({ default_amount: amount });
   };
 
   const setHistoricalTieredAmount = (month: number, year: number, rates: { [key: number]: number }) => {
     setState(prev => {
       const filtered = prev.tieredAmountHistory.filter(h => !(h.month === month && h.year === year));
       const newHistory = [...filtered, { month, year, rates }];
-      db.updateSettings({ tiered_amount_history: newHistory });
       return { ...prev, tieredAmountHistory: newHistory };
     });
   };
@@ -208,7 +172,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteHistoricalTieredAmount = (month: number, year: number) => {
     setState(prev => {
       const newHistory = prev.tieredAmountHistory.filter(h => !(h.month === month && h.year === year));
-      db.updateSettings({ tiered_amount_history: newHistory });
       return { ...prev, tieredAmountHistory: newHistory };
     });
   };
@@ -220,7 +183,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.upsertPayment(newPayment);
   };
 
   const deletePayment = (paymentId: string) => {
@@ -229,7 +191,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.deletePayment(paymentId);
   };
 
   const addExpense = (expense: Omit<Expense, 'id'>) => {
@@ -239,7 +200,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.upsertExpense(newExpense);
   };
 
   const updateExpense = (id: string, updates: Partial<Expense>) => {
@@ -251,7 +211,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.updateExpense(id, updates);
   };
 
   const deleteExpense = (id: string) => {
@@ -260,7 +219,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.deleteExpense(id);
   };
 
   const addGuest = (guest: Omit<GuestRegistration, 'id'>) => {
@@ -270,7 +228,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.upsertGuest(newGuest);
   };
 
   const deleteGuest = (id: string) => {
@@ -279,7 +236,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.deleteGuest(id);
   };
 
   const addEvaluation = (studentId: string, evaluation: Omit<BodyEvaluation, 'id'>) => {
@@ -287,7 +243,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newStudents = prev.students.map(s => {
         if (s.id === studentId) {
           const updated = { ...s, evaluations: [...s.evaluations, { ...evaluation, id: Math.random().toString(36).substr(2, 9) }] };
-          db.upsertStudent(updated);
           return updated;
         }
         return s;
@@ -299,7 +254,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const setFeeConfig = (config: FeeConfig) => {
-    // Note: feeConfigs not explicitly mapped to a separate table yet, keeping in local state/storage for now or could be added to settings
     setState(prev => {
       const filtered = prev.feeConfigs.filter(c => !(c.month === config.month && c.year === config.year));
       return { ...prev, feeConfigs: [...filtered, config] };
@@ -326,8 +280,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           year: year,
           amountOwed: amount
         };
-        // Persist fee to DB immediately
-        db.upsertFee(fee);
         return fee;
       });
       const newState = { ...prev, fees: [...prev.fees, ...newFees] };
@@ -341,11 +293,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const exists = prev.attendance.find(a => a.studentId === studentId && a.date === date && a.time === time);
       let newState;
       if (exists) {
-        db.deleteAttendance(studentId, date, time);
         newState = { ...prev, attendance: prev.attendance.filter(a => !(a.studentId === studentId && a.date === date && a.time === time)) };
       } else {
         const record = { studentId, date, time, present: true };
-        db.upsertAttendance(record);
         newState = { ...prev, attendance: [...prev.attendance, record] };
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
@@ -410,7 +360,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       maxCapacityPerShift: 10
     };
     setState(newState);
-    // Note: Bulk delete not implemented in db helper yet, but this is a destructive action
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
   };
 
   const updateStudent = (student: Student) => {
@@ -422,7 +372,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.upsertStudent(student);
   };
 
   const moveStudentSchedule = (studentId: string, oldDay: DayOfWeek, oldStartTime: string, newDay: DayOfWeek, newStartTime: string) => {
@@ -447,7 +396,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       success = true;
       const updatedStudent = { ...student, schedule: newSchedule };
-      db.upsertStudent(updatedStudent);
       const newState = {
         ...prev,
         students: prev.students.map(s => s.id === studentId ? updatedStudent : s)
@@ -465,7 +413,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.upsertStudent(newStudent);
   };
 
   const updateGymInfo = (name: string, logo: string | null) => {
@@ -473,13 +420,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newState = { ...prev, gymName: name, gymLogo: logo };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
-    });
-    // Ensure we are sending the correct snake_case keys to the db
-    db.updateSettings({ gym_name: name, gym_logo: logo }).then(res => {
-      console.log('Update settings result:', res);
-      if (res?.error) {
-        console.error('Error updating settings in DB:', res.error);
-      }
     });
   };
 
@@ -489,9 +429,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
     });
-    db.updateSettings({ whatsapp_template_agenda: agenda, whatsapp_template_debt: debt }).then(res => {
-      console.log('Update whatsapp templates result:', res);
-    });
   };
 
   const updateMaxCapacity = (capacity: number) => {
@@ -499,9 +436,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newState = { ...prev, maxCapacityPerShift: capacity };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
       return newState;
-    });
-    db.updateSettings({ max_capacity_per_shift: capacity }).then(res => {
-      console.log('Update max capacity result:', res);
     });
   };
 
