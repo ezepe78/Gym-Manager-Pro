@@ -1,0 +1,5 @@
+{
+  "name": "Gym Manager Pro",
+  "description": "Un tablero de gestión de gimnasios de alta fidelidad con ciclos de facturación automatizados, agenda visual y una función única de simulación de fecha 'Time Travel' para probar la lógica financiera.",
+  "requestFramePermissions": []
+}
